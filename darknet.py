@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 from torch.autograd import Variable
 import numpy as np
-from util import * 
+import common.util as util
 
 
 
@@ -84,7 +84,7 @@ class EmptyLayer(nn.Module):
 
 class DetectionLayer(nn.Module):
     """
-    yolo 检测层的具体实现, 在特征图上使用锚点预测目标区域和类别, 功能函数在predict_transform中
+    yolo 检测层的具体实现, 在特征图上使用锚点预测目标区域和类别, 功能函数在util.predict_transform中
     新的层 DetectionLayer 保存用于检测边界框的锚点
     """
     def __init__(self, anchors):
@@ -224,7 +224,7 @@ def create_modules(blocks):
             anchors = [(anchors[i], anchors[i+1]) for i in range(0, len(anchors),2)]
             anchors = [anchors[i] for i in mask]
             
-            # 锚点,检测,位置回归,分类，这个类见predict_transform中
+            # 锚点,检测,位置回归,分类，这个类见util.predict_transform中
             detection = DetectionLayer(anchors)
             module.add_module("Detection_{}".format(index), detection)
                               
@@ -247,6 +247,8 @@ class Darknet(nn.Module):
         
     def forward(self, x, CUDA):
         # 该网络的前向传播通过覆写 nn.Module 类别的 forward 方法而实现。
+        # model = darknet.Darknet(nn.Module)实例化的时候会自动调用__call__方法，然后在这个方法里面都会自动调用forward方法
+        # nn.Module在darknet中需要用args.cfgfile从cfg/yolov3.cfg中调用，即父类网络结构
         # forward 主要有两个目的。
         # 一，计算输出；
         # 二，尽早处理的方式转换输出检测特征图（例如转换之后，这些不同尺度的检测图就能够串联，不然会因为不同维度不可能实现串联）。
@@ -306,7 +308,7 @@ class Darknet(nn.Module):
                 另一个问题是由于检测是在三个尺度上进行的，预测图的维度将是不同的。
                 虽然三个特征图的维度不同，但对它们执行的输出处理过程是相似的。
                 如果能在单个张量而不是三个单独张量上执行这些运算，就太好了。
-                为了解决这些问题，我们引入了函数 predict_transform。
+                为了解决这些问题，我们引入了函数 util.predict_transform。
                 """
             elif module_type == 'yolo':        
                 anchors = self.module_list[i][0].anchors
@@ -318,10 +320,10 @@ class Darknet(nn.Module):
         
                 #Transform 
                 x = x.data # 这里得到的是预测的yolo层feature map
-                # 在util.py中的predict_transform()函数利用x(是传入yolo层的feature map)，得到每个格子所对应的anchor最终得到的目标
-                # 坐标与宽高，以及出现目标的得分与每种类别的得分。经过predict_transform变换后的x的维度是(batch_size, grid_size*grid_size*num_anchors, 5+类别数量)
-                # 函数 predict_transform 在文件 util.py 中，我们在 Darknet 类别的 forward 中使用该函数时，将导入该函数。
-                x = predict_transform(x, inp_dim, anchors, num_classes, CUDA)
+                # 在util.py中的util.predict_transform()函数利用x(是传入yolo层的feature map)，得到每个格子所对应的anchor最终得到的目标
+                # 坐标与宽高，以及出现目标的得分与每种类别的得分。经过util.predict_transform变换后的x的维度是(batch_size, grid_size*grid_size*num_anchors, 5+类别数量)
+                # 函数 util.predict_transform 在文件 util.py 中，我们在 Darknet 类别的 forward 中使用该函数时，将导入该函数。
+                x = util.predict_transform(x, inp_dim, anchors, num_classes, CUDA)
                  
                 if not write:              #if no collector has been intialised. 因为一个空的tensor无法与一个有数据的tensor进行concatenate操作，
                     detections = x #所以detections的初始化在有预测值出来时才进行，
@@ -333,7 +335,7 @@ class Darknet(nn.Module):
                     这里是在维度1上进行concatenate，即按照anchor数量的维度进行连接，
                     对应教程part3中的Bounding Box attributes图的行进行连接。
                     yolov3中有3个yolo层，所以对于每个yolo层的输出,
-                    先用predict_transform()变成每行为一个anchor对应的预测值的形式(不看batch_size这个维度，x剩下的
+                    先用util.predict_transform()变成每行为一个anchor对应的预测值的形式(不看batch_size这个维度，x剩下的
                     维度可以看成一个二维tensor)，这样3个yolo层的预测值按照每个方框对应的行的维度进行连接。
                     得到了这张图处所有anchor的预测值，后面的NMS等操作可以一次完成
                     """
@@ -453,7 +455,7 @@ class Darknet(nn.Module):
 函数create_modules: 创建网络层级，
 Darknet类的forward函数:实现网络前向传播函数了
 load_weights: 导入预训练的网络权重参数
-forward函数:产生需要的预测输出形式，因此需要变换输出即函数 predict_transform 在文件 util.py 中，
+forward函数:产生需要的预测输出形式，因此需要变换输出即函数 util.predict_transform 在文件 util.py 中，
 我们在 Darknet 类别的 forward 中使用该函数时，将导入该函数。
 """
 

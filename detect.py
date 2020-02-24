@@ -21,11 +21,11 @@ import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 import cv2 
-from util import *
+import common.util as util
 import argparse
 import os 
 import os.path as osp
-from darknet import Darknet
+import darknet
 import pickle as pkl
 import pandas as pd
 import random
@@ -95,13 +95,13 @@ wget https://raw.githubusercontent.com/ayooshkathuria/YOLO_v3_tutorial_from_scra
 # 将类别文件载入到我们的程序中。
 num_classes = 80
 # load_classes 是在 util.py 中定义的一个函数，其会返回一个字典——将每个类别的索引映射到其名称的字符串。
-classes = load_classes("data/coco.names")
+classes = util.load_classes("data/coco.names")
 
 # Set up the neural network
 # 初始化网络并载入权重。
 print("Loading network.....")
-# Darknet类中初始化时得到了网络结构和网络的参数信息，保存在net_info，module_list中
-model = Darknet(args.cfgfile)
+# darknet.Darknet类中初始化时得到了网络结构和网络的参数信息，保存在net_info，module_list中
+model = darknet.Darknet(args.cfgfile)
 # 将权重文件载入，并复制给对应的网络结构model中
 model.load_weights(args.weightsfile)
 print("Network successfully loaded")
@@ -124,6 +124,7 @@ if CUDA:
 
 # Set the model in evaluation mode
 # 变成测试模式，这主要是对dropout和batch normalization的操作在训练和测试的时候是不一样的
+# model.train()是在训练的时候用到，model.eval()是在测试的时候用到
 model.eval()
 
 """
@@ -158,8 +159,8 @@ loaded_ims = [cv2.imread(x) for x in imlist] # 将所有的图片读入，一张
 # 除了转换后的图像，我们也会维护一个原始图像的列表，以及一个包含原始图像的维度的列表 im_dim_list。
 # 加载全部待检测图像
 # loaded_ims和[inp_dim for x in range(len(imlist))]是两个列表，lodded_ims是所有图片数组的列表，[inp_dim for x in range(len(imlist))] 遍历imlist长度(即图片的数量)这么多次，每次返回值是图片需resize的输入尺寸inp_dim（如416）
-# map函数将对应的元素作为参数传入prep_image函数，最终的所有结果也会组成一个列表(im_batches)，是BxCxHxW
-im_batches = list(map(prep_image, loaded_ims, [inp_dim for x in np.arange(len(imlist))]))
+# map函数将对应的元素作为参数传入util.prep_image函数，最终的所有结果也会组成一个列表(im_batches)，是BxCxHxW
+im_batches = list(map(util.prep_image, loaded_ims, [inp_dim for x in np.arange(len(imlist))]))
 #除了转换后的图像，我们也会维护一个列表im_dim_list用于保存原始图片的维度。一个元素对应一张图片的宽高,opencv读入的图片矩阵对应的是 HxWxC
 im_dim_list = [(x.shape[1], x.shape[0]) for x in loaded_ims]
 # 将im_dim_list转换为floatTensor类型的tensor，此时维度为11x2，
@@ -193,15 +194,15 @@ if batch_size != 1:
 
 """
 检测循环
-我们在 batch 上迭代，生成预测结果，将我们必须执行检测的所有图像的预测张量（形状为 Dx8，write_results 函数的输出）连接起来。
+我们在 batch 上迭代，生成预测结果，将我们必须执行检测的所有图像的预测张量（形状为 Dx8，util.write_results 函数的输出）连接起来。
 
-对于每个 batch，我们都会测量检测所用的时间，即测量获取输入到 write_results 函数得到输出之间所用的时间。
+对于每个 batch，我们都会测量检测所用的时间，即测量获取输入到 util.write_results 函数得到输出之间所用的时间。
 在 write_prediction 返回的输出中，其中一个属性是 batch 中图像的索引。
 我们对这个特定属性执行转换，使其现在能代表 imlist 中图像的索引，该列表包含了所有图像的地址。
 
 在那之后，我们 print 每个检测结果所用的时间以及每张图像中检测到的目标。
 
-如果 write_results 函数在 batch 上的输出是一个 int 值（0），
+如果 util.write_results 函数在 batch 上的输出是一个 int 值（0），
 也就是说没有检测结果，那么我们就继续跳过循环的其余部分。
 
 """
@@ -235,10 +236,10 @@ for i, batch in enumerate(im_batches):
     # s_cls是这个方框中所含目标最有可能的类别的概率得分，
     # index_cls是s_cls对应的这个类别在所有类别中所对应的序号。
     # 这里prediction维度是3x8，表示有3个框
-    prediction = write_results(prediction, confidence, num_classes, nms_conf = nms_thesh)
+    prediction = util.write_results(prediction, confidence, num_classes, nms_conf = nms_thesh)
 
     end = time.time()
-    # 如果从write_results()返回的一个batch的结果是一个int(0)，表示没有检测到时目标，此时用continue跳过本次循环
+    # 如果从util.write_results()返回的一个batch的结果是一个int(0)，表示没有检测到时目标，此时用continue跳过本次循环
     if type(prediction) == int:
     # 在imlist中，遍历一个batch所有的图片对应的元素(即每张图片的存储位置和名字)，同时返回这张图片在这个batch中的序号im_num
         for im_num, image in enumerate(imlist[i*batch_size: min((i +  1)*batch_size, len(imlist))]):
