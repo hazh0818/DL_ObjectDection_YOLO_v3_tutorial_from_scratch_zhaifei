@@ -1,12 +1,10 @@
 import os
 import numpy as np
-import logging
 import cv2
-
+import logging
 import torch
 from torch.utils.data import Dataset
-
-from . import data_transforms
+import data_transforms
 
 
 class COCODataset(Dataset):
@@ -14,8 +12,11 @@ class COCODataset(Dataset):
         self.img_files = []
         self.label_files = []
         for path in open(list_path, 'r'):
+            print(path)
             label_path = path.replace('images', 'labels').replace('.png', '.txt').replace(
                 '.jpg', '.txt').strip()
+            print(label_path)
+            input
             if os.path.isfile(label_path):
                 self.img_files.append(path)
                 self.label_files.append(label_path)
@@ -59,10 +60,10 @@ class COCODataset(Dataset):
     def __len__(self):
         return len(self.img_files)
 
-
 #  use for test dataloader
 if __name__ == "__main__":
-    dataloader = torch.utils.data.DataLoader(COCODataset("../data/coco/trainvalno5k.txt",
+    trainPath = "../data/coco/trainvalno5k.txt" #训练数据路径
+    dataloader = torch.utils.data.DataLoader(COCODataset(trainPath,
                                                          (416, 416), True, is_debug=True),
                                              batch_size=2,
                                              shuffle=False, num_workers=1, pin_memory=False)

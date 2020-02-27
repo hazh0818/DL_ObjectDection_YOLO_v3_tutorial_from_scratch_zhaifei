@@ -1,0 +1,10 @@
+numpy
+torch
+torchvision
+pillow
+tensorboardX
+imgaug
+opencv-python
+matplotlib
+cython
+pycocotools
